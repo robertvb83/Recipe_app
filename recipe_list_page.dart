@@ -1,7 +1,9 @@
 import 'dart:convert';
 import 'dart:io';
-import 'package:flutter/material.dart';
+
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/material.dart';
+
 import 'db_helper.dart';
 import 'recipe_details_page.dart';
 import 'shopping_list_page.dart';
@@ -86,34 +88,41 @@ class _RecipeListPageState extends State<RecipeListPage> {
       recipesFuture = DBHelper.fetchRecipes();
     });
 
-    // Ensure SnackBar is dismissed correctly by using a separate context reference
-    if (!mounted) return;
-    ScaffoldMessenger.of(context)
-      ..removeCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text("$name deleted"),
-          duration: const Duration(seconds: 3), // Explicit duration
-          behavior: SnackBarBehavior.floating,
-          action: SnackBarAction(
-            label: "Undo",
-            onPressed: () async {
-              int restoredId = await db.insert('recipes', {'name': name});
-              for (var ingredient in ingredients) {
-                await db.insert('ingredients', {
-                  'recipe_id': restoredId,
-                  'name': ingredient['name'],
-                  'weight': ingredient['weight'],
-                  'order': ingredient['order'],
-                });
-              }
-              setState(() {
-                recipesFuture = DBHelper.fetchRecipes();
+    // Clear any existing SnackBars
+    ScaffoldMessenger.of(context).clearSnackBars();
+
+    // Show the SnackBar with a manual timeout
+    final snackBarController = ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text("$name deleted"),
+        action: SnackBarAction(
+          label: "Undo",
+          onPressed: () async {
+            int restoredId = await db.insert('recipes', {'name': name});
+            for (var ingredient in ingredients) {
+              await db.insert('ingredients', {
+                'recipe_id': restoredId,
+                'name': ingredient['name'],
+                'weight': ingredient['weight'],
+                'order': ingredient['order'],
               });
-            },
-          ),
+            }
+            setState(() {
+              recipesFuture = DBHelper.fetchRecipes();
+            });
+          },
         ),
-      );
+      ),
+    );
+
+    // Manually dismiss the SnackBar after a duration
+    TickerFuture tickerFuture = TickerFuture.complete();
+    tickerFuture.timeout(
+      Duration(seconds: 3),
+      onTimeout: () {
+        snackBarController.close();
+      },
+    );
   }
 
   Future<void> importRecipes(String filePath) async {

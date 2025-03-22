@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'db_helper.dart';
+
 import 'add_ingredient_page.dart';
+import 'db_helper.dart';
 
 class RecipeDetailsPage extends StatefulWidget {
   final int recipeId;
@@ -62,27 +63,33 @@ class _RecipeDetailsPageState extends State<RecipeDetailsPage> {
     fetchRecipeDetails();
 
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-      ..removeCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text("$name deleted"),
-          duration: const Duration(seconds: 3),
-          behavior: SnackBarBehavior.floating,
-          action: SnackBarAction(
-            label: "Undo",
-            onPressed: () async {
-              await DBHelper.insertIngredientWithOrder(
-                widget.recipeId,
-                name,
-                weight,
-                order,
-              );
-              fetchRecipeDetails();
-            },
-          ),
+
+    // Show SnackBar and manually dismiss after timeout
+    ScaffoldMessenger.of(context).removeCurrentSnackBar();
+
+    final controller = ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text("$name deleted"),
+        behavior: SnackBarBehavior.floating,
+        action: SnackBarAction(
+          label: "Undo",
+          onPressed: () async {
+            await DBHelper.insertIngredientWithOrder(
+              widget.recipeId,
+              name,
+              weight,
+              order,
+            );
+            fetchRecipeDetails();
+          },
         ),
-      );
+      ),
+    );
+
+    // Dismiss after 3 seconds if not already dismissed
+    Future.delayed(const Duration(seconds: 3), () {
+      controller.close(); // Triggers hiding if still shown
+    });
   }
 
   Future<void> editIngredient(
