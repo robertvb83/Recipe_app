@@ -1,9 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
-
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-
 import 'db_helper.dart';
 import 'recipe_details_page.dart';
 import 'shopping_list_page.dart';
@@ -88,13 +86,15 @@ class _RecipeListPageState extends State<RecipeListPage> {
       recipesFuture = DBHelper.fetchRecipes();
     });
 
-    // Clear any existing SnackBars
+    if (!mounted) return;
+
+    // Clear any existing snackbars
     ScaffoldMessenger.of(context).clearSnackBars();
 
-    // Show the SnackBar with a manual timeout
-    final snackBarController = ScaffoldMessenger.of(context).showSnackBar(
+    final controller = ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text("$name deleted"),
+        behavior: SnackBarBehavior.floating,
         action: SnackBarAction(
           label: "Undo",
           onPressed: () async {
@@ -115,14 +115,10 @@ class _RecipeListPageState extends State<RecipeListPage> {
       ),
     );
 
-    // Manually dismiss the SnackBar after a duration
-    TickerFuture tickerFuture = TickerFuture.complete();
-    tickerFuture.timeout(
-      Duration(seconds: 3),
-      onTimeout: () {
-        snackBarController.close();
-      },
-    );
+    // Manually close the SnackBar after 3 seconds (if still open and not interacted with)
+    Future.delayed(const Duration(seconds: 3), () {
+      if (mounted) controller.close();
+    });
   }
 
   Future<void> importRecipes(String filePath) async {

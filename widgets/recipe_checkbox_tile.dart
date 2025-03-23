@@ -7,36 +7,41 @@ class RecipeCheckboxTile extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback onLongPress;
 
-  RecipeCheckboxTile({
-    Key? key, // <-- Add this line
+  const RecipeCheckboxTile({
+    Key? key,
     required this.recipe,
     required this.initiallyChecked,
     required this.onChanged,
     required this.onTap,
     required this.onLongPress,
-  }) : super(key: key); // <-- And pass it here
+  }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     return ListTile(
-      title: Container(
-        padding: EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          color: Colors.black.withOpacity(0.2),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Text(
-          recipe['name'],
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ),
       leading: Checkbox(
         value: initiallyChecked,
         onChanged: (checked) => onChanged(checked ?? false),
+      ),
+      title: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.4),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Text(
+              recipe['name'],
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
       ),
       onTap: onTap,
       onLongPress: onLongPress,
