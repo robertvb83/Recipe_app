@@ -15,6 +15,8 @@ class _RecipeDetailsPageState extends State<RecipeDetailsPage> {
   List<Map<String, dynamic>> ingredients = [];
   Set<int> checkedIngredientIds = {};
   String recipeName = "Loading...";
+  List<double> scaleFactors = [1, 2, 3, 4, 5];
+  double selectedScale = 1;
 
   @override
   void initState() {
@@ -25,7 +27,6 @@ class _RecipeDetailsPageState extends State<RecipeDetailsPage> {
   Future<void> fetchRecipeDetails() async {
     final db = await DBHelper.initDB();
 
-    // Fetch recipe name
     final recipeResult = await db.query(
       'recipes',
       where: 'id = ?',
@@ -36,7 +37,6 @@ class _RecipeDetailsPageState extends State<RecipeDetailsPage> {
       recipeName = recipeResult.first['name'] as String;
     }
 
-    // Fetch ingredients
     List<Map<String, dynamic>> result = await db.query(
       'ingredients',
       where: 'recipe_id = ?',
@@ -112,7 +112,7 @@ class _RecipeDetailsPageState extends State<RecipeDetailsPage> {
       text: currentName,
     );
     TextEditingController weightController = TextEditingController(
-      text: currentWeight.toString(),
+      text: currentWeight.toStringAsFixed(1),
     );
 
     await showDialog(
@@ -131,6 +131,26 @@ class _RecipeDetailsPageState extends State<RecipeDetailsPage> {
                   controller: weightController,
                   decoration: InputDecoration(labelText: "Weight"),
                   keyboardType: TextInputType.number,
+                ),
+                SizedBox(height: 10),
+                ElevatedButton(
+                  child: Text("Scale by this ingredient"),
+                  onPressed: () {
+                    double? newWeight = double.tryParse(weightController.text);
+                    if (newWeight != null && currentWeight > 0) {
+                      double factor = newWeight / currentWeight;
+                      setState(() {
+                        ingredients =
+                            ingredients.map((ing) {
+                              ing['weight'] = double.parse(
+                                (ing['weight'] * factor).toStringAsFixed(1),
+                              );
+                              return ing;
+                            }).toList();
+                      });
+                      Navigator.pop(context);
+                    }
+                  },
                 ),
               ],
             ),
@@ -166,12 +186,53 @@ class _RecipeDetailsPageState extends State<RecipeDetailsPage> {
     });
   }
 
+  void resetScaling() {
+    selectedScale = 1;
+    fetchRecipeDetails();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: Text(recipeName),
         actions: [
+          DropdownButton<double>(
+            value: selectedScale,
+            dropdownColor: Colors.blueGrey,
+            icon: Icon(Icons.scale, color: Colors.white),
+            items:
+                scaleFactors
+                    .map(
+                      (f) => DropdownMenuItem(
+                        value: f,
+                        child: Text(
+                          "${f}x",
+                          style: TextStyle(color: Colors.black),
+                        ),
+                      ),
+                    )
+                    .toList(),
+            onChanged: (value) {
+              if (value != null) {
+                setState(() {
+                  selectedScale = value;
+                  ingredients =
+                      ingredients.map((ing) {
+                        ing['weight'] = double.parse(
+                          (ing['weight'] * selectedScale).toStringAsFixed(1),
+                        );
+                        return ing;
+                      }).toList();
+                });
+              }
+            },
+          ),
+          IconButton(
+            icon: Icon(Icons.refresh),
+            tooltip: 'Reset Scaling',
+            onPressed: resetScaling,
+          ),
           IconButton(
             icon: Icon(Icons.check_box),
             onPressed: toggleAllCheckboxes,
@@ -219,7 +280,7 @@ class _RecipeDetailsPageState extends State<RecipeDetailsPage> {
                         child: Icon(Icons.delete, color: Colors.white),
                       ),
                       child: ListTile(
-                        key: ValueKey("ingredient_${ing['id']}"),
+                        key: ValueKey("ingredient_\${ing['id']}"),
                         leading: Checkbox(
                           value: checkedIngredientIds.contains(ing['id']),
                           onChanged: (checked) {
@@ -241,7 +302,9 @@ class _RecipeDetailsPageState extends State<RecipeDetailsPage> {
                                     : null,
                           ),
                         ),
-                        subtitle: Text("${ing['weight']} g"),
+                        subtitle: Text(
+                          "${(ing['weight'] as double).toStringAsFixed(1)} g",
+                        ),
                         onTap:
                             () => editIngredient(
                               ing['id'],
