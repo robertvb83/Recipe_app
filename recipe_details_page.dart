@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
-
-import 'add_ingredient_page.dart';
 import 'db_helper.dart';
+import 'add_ingredient_page.dart';
 
 class RecipeDetailsPage extends StatefulWidget {
   final int recipeId;
@@ -14,6 +13,7 @@ class RecipeDetailsPage extends StatefulWidget {
 
 class _RecipeDetailsPageState extends State<RecipeDetailsPage> {
   List<Map<String, dynamic>> ingredients = [];
+  Set<int> checkedIngredientIds = {};
 
   @override
   void initState() {
@@ -63,33 +63,27 @@ class _RecipeDetailsPageState extends State<RecipeDetailsPage> {
     fetchRecipeDetails();
 
     if (!mounted) return;
-
-    // Show SnackBar and manually dismiss after timeout
-    ScaffoldMessenger.of(context).removeCurrentSnackBar();
-
-    final controller = ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text("$name deleted"),
-        behavior: SnackBarBehavior.floating,
-        action: SnackBarAction(
-          label: "Undo",
-          onPressed: () async {
-            await DBHelper.insertIngredientWithOrder(
-              widget.recipeId,
-              name,
-              weight,
-              order,
-            );
-            fetchRecipeDetails();
-          },
+    ScaffoldMessenger.of(context)
+      ..removeCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text("$name deleted"),
+          duration: const Duration(seconds: 3),
+          behavior: SnackBarBehavior.floating,
+          action: SnackBarAction(
+            label: "Undo",
+            onPressed: () async {
+              await DBHelper.insertIngredientWithOrder(
+                widget.recipeId,
+                name,
+                weight,
+                order,
+              );
+              fetchRecipeDetails();
+            },
+          ),
         ),
-      ),
-    );
-
-    // Dismiss after 3 seconds if not already dismissed
-    Future.delayed(const Duration(seconds: 3), () {
-      controller.close(); // Triggers hiding if still shown
-    });
+      );
   }
 
   Future<void> editIngredient(
@@ -145,22 +139,39 @@ class _RecipeDetailsPageState extends State<RecipeDetailsPage> {
     );
   }
 
+  void toggleCheckAll() {
+    setState(() {
+      if (checkedIngredientIds.length == ingredients.length) {
+        checkedIngredientIds.clear();
+      } else {
+        checkedIngredientIds =
+            ingredients.map((ing) => ing['id'] as int).toSet();
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text("Recipe Details")),
+      appBar: AppBar(
+        title: Text("Recipe Details"),
+        actions: [
+          IconButton(
+            icon: Icon(Icons.checklist),
+            onPressed: toggleCheckAll,
+            tooltip: 'Check/Uncheck All',
+          ),
+        ],
+      ),
       body:
           ingredients.isEmpty
               ? Center(child: Text("No ingredients available for this recipe."))
               : ReorderableListView(
                 onReorder: (oldIndex, newIndex) {
                   setState(() {
-                    if (newIndex > oldIndex) {
-                      newIndex -= 1;
-                    }
-                    final ingredient = ingredients.removeAt(oldIndex);
-                    ingredients.insert(newIndex, ingredient);
-
+                    if (newIndex > oldIndex) newIndex -= 1;
+                    final item = ingredients.removeAt(oldIndex);
+                    ingredients.insert(newIndex, item);
                     for (int i = 0; i < ingredients.length; i++) {
                       DBHelper.updateIngredientOrder(ingredients[i]['id'], i);
                     }
@@ -186,14 +197,31 @@ class _RecipeDetailsPageState extends State<RecipeDetailsPage> {
                         child: Icon(Icons.delete, color: Colors.white),
                       ),
                       child: ListTile(
-                        title: Text("${ing['name']}"),
+                        leading: Checkbox(
+                          value: checkedIngredientIds.contains(ing['id']),
+                          onChanged: (bool? checked) {
+                            setState(() {
+                              if (checked == true) {
+                                checkedIngredientIds.add(ing['id']);
+                              } else {
+                                checkedIngredientIds.remove(ing['id']);
+                              }
+                            });
+                          },
+                        ),
+                        title: Text(
+                          "${ing['name']}",
+                          style: TextStyle(
+                            decoration:
+                                checkedIngredientIds.contains(ing['id'])
+                                    ? TextDecoration.lineThrough
+                                    : null,
+                          ),
+                        ),
                         subtitle: Text("${ing['weight']} g"),
-                        onTap:
-                            () => editIngredient(
-                              ing['id'],
-                              ing['name'],
-                              ing['weight'],
-                            ), // Now calls editIngredient
+                        onLongPress: () {
+                          editIngredient(ing['id'], ing['name'], ing['weight']);
+                        },
                       ),
                     ),
                 ],
