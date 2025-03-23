@@ -14,6 +14,7 @@ class RecipeListPage extends StatefulWidget {
 
 class _RecipeListPageState extends State<RecipeListPage> {
   Set<int> selectedRecipes = {};
+  Map<int, double> recipeMultipliers = {}; // New: track multipliers per recipe
   List<Map<String, dynamic>> recipes = [];
   late Future<List<Map<String, dynamic>>> recipesFuture;
   final ScrollController _scrollController = ScrollController();
@@ -21,7 +22,7 @@ class _RecipeListPageState extends State<RecipeListPage> {
   @override
   void initState() {
     super.initState();
-    recipesFuture = DBHelper.fetchRecipes(); // Fetch recipes once initially
+    recipesFuture = DBHelper.fetchRecipes();
   }
 
   void toggleSelection(int recipeId) {
@@ -49,6 +50,8 @@ class _RecipeListPageState extends State<RecipeListPage> {
     Map<String, double> shoppingList = {};
 
     for (int recipeId in selectedRecipes) {
+      double multiplier = recipeMultipliers[recipeId] ?? 1.0;
+
       List<Map<String, dynamic>> ingredients = await db.query(
         'ingredients',
         where: 'recipe_id = ?',
@@ -57,7 +60,7 @@ class _RecipeListPageState extends State<RecipeListPage> {
 
       for (var ingredient in ingredients) {
         String name = ingredient['name'];
-        double weight = ingredient['weight'];
+        double weight = ingredient['weight'] * multiplier;
 
         shoppingList[name] = (shoppingList[name] ?? 0) + weight;
       }
@@ -88,7 +91,6 @@ class _RecipeListPageState extends State<RecipeListPage> {
 
     if (!mounted) return;
 
-    // Clear any existing snackbars
     ScaffoldMessenger.of(context).clearSnackBars();
 
     final controller = ScaffoldMessenger.of(context).showSnackBar(
@@ -115,7 +117,6 @@ class _RecipeListPageState extends State<RecipeListPage> {
       ),
     );
 
-    // Manually close the SnackBar after 3 seconds (if still open and not interacted with)
     Future.delayed(const Duration(seconds: 3), () {
       if (mounted) controller.close();
     });
@@ -178,7 +179,7 @@ class _RecipeListPageState extends State<RecipeListPage> {
       }
 
       setState(() {
-        recipesFuture = DBHelper.fetchRecipes(); // Refresh after import
+        recipesFuture = DBHelper.fetchRecipes();
       });
     } catch (e) {
       print("Error importing recipes: $e");
@@ -191,6 +192,15 @@ class _RecipeListPageState extends State<RecipeListPage> {
       appBar: AppBar(
         title: Text('Recipe List'),
         actions: [
+          IconButton(
+            icon: Icon(Icons.refresh),
+            tooltip: 'Reset All Multipliers',
+            onPressed: () {
+              setState(() {
+                recipeMultipliers.clear(); // Reset all to default (1x)
+              });
+            },
+          ),
           IconButton(
             icon: Icon(Icons.select_all),
             onPressed: toggleSelectAll,
@@ -274,8 +284,11 @@ class _RecipeListPageState extends State<RecipeListPage> {
               itemCount: recipes.length,
               itemBuilder: (context, index) {
                 var recipe = recipes[index];
+                int recipeId = recipe['id'];
+                double multiplier = recipeMultipliers[recipeId] ?? 1.0;
+
                 return Dismissible(
-                  key: ValueKey(recipe['id']),
+                  key: ValueKey(recipeId),
                   direction: DismissDirection.endToStart,
                   background: Container(
                     color: Colors.red,
@@ -283,58 +296,96 @@ class _RecipeListPageState extends State<RecipeListPage> {
                     padding: EdgeInsets.symmetric(horizontal: 20),
                     child: Icon(Icons.delete, color: Colors.white),
                   ),
-                  onDismissed:
-                      (_) => deleteRecipe(recipe['id'], recipe['name']),
-                  child: RecipeCheckboxTile(
-                    key: ValueKey(recipe['id']),
-                    recipe: recipe,
-                    initiallyChecked: selectedRecipes.contains(recipe['id']),
-                    onChanged: (checked) => toggleSelection(recipe['id']),
-                    onTap:
-                        () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder:
-                                (_) =>
-                                    RecipeDetailsPage(recipeId: recipe['id']),
-                          ),
-                        ),
-                    onLongPress: () async {
-                      TextEditingController nameController =
-                          TextEditingController(text: recipe['name']);
-                      await showDialog(
-                        context: context,
-                        builder:
-                            (_) => AlertDialog(
-                              title: Text("Edit Recipe"),
-                              content: TextField(
-                                controller: nameController,
-                                decoration: InputDecoration(
-                                  labelText: "Recipe Name",
+                  onDismissed: (_) => deleteRecipe(recipeId, recipe['name']),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: RecipeCheckboxTile(
+                          key: ValueKey(recipeId),
+                          recipe: recipe,
+                          initiallyChecked: selectedRecipes.contains(recipeId),
+                          onChanged: (checked) => toggleSelection(recipeId),
+                          onTap:
+                              () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder:
+                                      (_) =>
+                                          RecipeDetailsPage(recipeId: recipeId),
                                 ),
                               ),
-                              actions: [
-                                TextButton(
-                                  onPressed: () => Navigator.pop(context),
-                                  child: Text("Cancel"),
-                                ),
-                                TextButton(
-                                  onPressed: () async {
-                                    await DBHelper.updateRecipe(
-                                      recipe['id'],
-                                      nameController.text,
-                                    );
-                                    Navigator.pop(context);
-                                    setState(() {
-                                      recipesFuture = DBHelper.fetchRecipes();
-                                    });
-                                  },
-                                  child: Text("Save"),
-                                ),
-                              ],
-                            ),
-                      );
-                    },
+                          onLongPress: () async {
+                            TextEditingController nameController =
+                                TextEditingController(text: recipe['name']);
+                            await showDialog(
+                              context: context,
+                              builder:
+                                  (_) => AlertDialog(
+                                    title: Text("Edit Recipe"),
+                                    content: TextField(
+                                      controller: nameController,
+                                      decoration: InputDecoration(
+                                        labelText: "Recipe Name",
+                                      ),
+                                    ),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () => Navigator.pop(context),
+                                        child: Text("Cancel"),
+                                      ),
+                                      TextButton(
+                                        onPressed: () async {
+                                          await DBHelper.updateRecipe(
+                                            recipeId,
+                                            nameController.text,
+                                          );
+                                          Navigator.pop(context);
+                                          setState(() {
+                                            recipesFuture =
+                                                DBHelper.fetchRecipes();
+                                          });
+                                        },
+                                        child: Text("Save"),
+                                      ),
+                                    ],
+                                  ),
+                            );
+                          },
+                        ),
+                      ),
+                      SizedBox(
+                        width: 70,
+                        child: DropdownButton<double>(
+                          value: multiplier,
+                          style: TextStyle(
+                            color:
+                                Colors.pink, // 💗 Sets color for selected item
+                            fontWeight: FontWeight.bold,
+                          ),
+                          dropdownColor:
+                              Colors.white, // optional: dropdown background
+                          onChanged: (value) {
+                            setState(() {
+                              recipeMultipliers[recipeId] = value!;
+                            });
+                          },
+                          items:
+                              [1.0, 2.0, 3.0, 4.0, 5.0]
+                                  .map(
+                                    (val) => DropdownMenuItem<double>(
+                                      value: val,
+                                      child: Text(
+                                        "${val.toInt()}x",
+                                        style: TextStyle(
+                                          color: Colors.pink,
+                                        ), // 💗 Sets color in dropdown menu
+                                      ),
+                                    ),
+                                  )
+                                  .toList(),
+                        ),
+                      ),
+                    ],
                   ),
                 );
               },

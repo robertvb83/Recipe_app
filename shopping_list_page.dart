@@ -21,7 +21,7 @@ class _ShoppingListPageState extends State<ShoppingListPage> {
           ..sort((a, b) => b.value.compareTo(a.value));
 
     String clipboardContent = sortedShoppingList
-        .map((item) => "${item.key}: ${item.value} g")
+        .map((item) => "${item.key}: ${item.value.toStringAsFixed(1)} g")
         .join('\n');
 
     Clipboard.setData(ClipboardData(text: clipboardContent));
@@ -86,7 +86,7 @@ class _ShoppingListPageState extends State<ShoppingListPage> {
                             isShopped ? TextDecoration.lineThrough : null,
                       ),
                     ),
-                    subtitle: Text("$amount g"),
+                    subtitle: Text("${amount.toStringAsFixed(1)} g"),
                   );
                 },
               ),
