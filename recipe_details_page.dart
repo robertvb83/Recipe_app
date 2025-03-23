@@ -139,13 +139,12 @@ class _RecipeDetailsPageState extends State<RecipeDetailsPage> {
     );
   }
 
-  void toggleCheckAll() {
+  void toggleAllCheckboxes() {
     setState(() {
       if (checkedIngredientIds.length == ingredients.length) {
         checkedIngredientIds.clear();
       } else {
-        checkedIngredientIds =
-            ingredients.map((ing) => ing['id'] as int).toSet();
+        checkedIngredientIds = ingredients.map((e) => e['id'] as int).toSet();
       }
     });
   }
@@ -157,8 +156,8 @@ class _RecipeDetailsPageState extends State<RecipeDetailsPage> {
         title: Text("Recipe Details"),
         actions: [
           IconButton(
-            icon: Icon(Icons.checklist),
-            onPressed: toggleCheckAll,
+            icon: Icon(Icons.check_box),
+            onPressed: toggleAllCheckboxes,
             tooltip: 'Check/Uncheck All',
           ),
         ],
@@ -169,11 +168,17 @@ class _RecipeDetailsPageState extends State<RecipeDetailsPage> {
               : ReorderableListView(
                 onReorder: (oldIndex, newIndex) {
                   setState(() {
-                    if (newIndex > oldIndex) newIndex -= 1;
-                    final item = ingredients.removeAt(oldIndex);
-                    ingredients.insert(newIndex, item);
+                    if (newIndex > oldIndex) {
+                      newIndex -= 1;
+                    }
+                    final ingredient = ingredients.removeAt(oldIndex);
+                    ingredients.insert(newIndex, ingredient);
+
                     for (int i = 0; i < ingredients.length; i++) {
-                      DBHelper.updateIngredientOrder(ingredients[i]['id'], i);
+                      DBHelper.updateIngredientOrder(
+                        ingredients[i]['id'],
+                        i + 1,
+                      );
                     }
                   });
                 },
@@ -197,9 +202,10 @@ class _RecipeDetailsPageState extends State<RecipeDetailsPage> {
                         child: Icon(Icons.delete, color: Colors.white),
                       ),
                       child: ListTile(
+                        key: ValueKey("ingredient_${ing['id']}"),
                         leading: Checkbox(
                           value: checkedIngredientIds.contains(ing['id']),
-                          onChanged: (bool? checked) {
+                          onChanged: (checked) {
                             setState(() {
                               if (checked == true) {
                                 checkedIngredientIds.add(ing['id']);
@@ -219,9 +225,12 @@ class _RecipeDetailsPageState extends State<RecipeDetailsPage> {
                           ),
                         ),
                         subtitle: Text("${ing['weight']} g"),
-                        onLongPress: () {
-                          editIngredient(ing['id'], ing['name'], ing['weight']);
-                        },
+                        onTap:
+                            () => editIngredient(
+                              ing['id'],
+                              ing['name'],
+                              ing['weight'],
+                            ),
                       ),
                     ),
                 ],
