@@ -14,6 +14,7 @@ class RecipeDetailsPage extends StatefulWidget {
 class _RecipeDetailsPageState extends State<RecipeDetailsPage> {
   List<Map<String, dynamic>> ingredients = [];
   Set<int> checkedIngredientIds = {};
+  String recipeName = "Loading...";
 
   @override
   void initState() {
@@ -24,6 +25,18 @@ class _RecipeDetailsPageState extends State<RecipeDetailsPage> {
   Future<void> fetchRecipeDetails() async {
     final db = await DBHelper.initDB();
 
+    // Fetch recipe name
+    final recipeResult = await db.query(
+      'recipes',
+      where: 'id = ?',
+      whereArgs: [widget.recipeId],
+      limit: 1,
+    );
+    if (recipeResult.isNotEmpty) {
+      recipeName = recipeResult.first['name'] as String;
+    }
+
+    // Fetch ingredients
     List<Map<String, dynamic>> result = await db.query(
       'ingredients',
       where: 'recipe_id = ?',
@@ -63,27 +76,31 @@ class _RecipeDetailsPageState extends State<RecipeDetailsPage> {
     fetchRecipeDetails();
 
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-      ..removeCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text("$name deleted"),
-          duration: const Duration(seconds: 3),
-          behavior: SnackBarBehavior.floating,
-          action: SnackBarAction(
-            label: "Undo",
-            onPressed: () async {
-              await DBHelper.insertIngredientWithOrder(
-                widget.recipeId,
-                name,
-                weight,
-                order,
-              );
-              fetchRecipeDetails();
-            },
-          ),
+
+    ScaffoldMessenger.of(context).removeCurrentSnackBar();
+
+    final controller = ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text("$name deleted"),
+        behavior: SnackBarBehavior.floating,
+        action: SnackBarAction(
+          label: "Undo",
+          onPressed: () async {
+            await DBHelper.insertIngredientWithOrder(
+              widget.recipeId,
+              name,
+              weight,
+              order,
+            );
+            fetchRecipeDetails();
+          },
         ),
-      );
+      ),
+    );
+
+    Future.delayed(const Duration(seconds: 3), () {
+      controller.close();
+    });
   }
 
   Future<void> editIngredient(
@@ -153,7 +170,7 @@ class _RecipeDetailsPageState extends State<RecipeDetailsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text("Recipe Details"),
+        title: Text(recipeName),
         actions: [
           IconButton(
             icon: Icon(Icons.check_box),
